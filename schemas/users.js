@@ -1,47 +1,55 @@
 let mongoose = require('mongoose');
 
-let userSchema = new mongoose.Schema({
+let userSchema = mongoose.Schema(
+  {
     username: {
-        type: String,
-        required: true,
-        unique: true
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
     },
     password: {
-        type: String,
-        required: true
+      type: String,
+      required: true,
     },
     email: {
-        type: String,
-        required: true,
-        unique: true
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      lowercase: true,
     },
     fullName: {
-        type: String,
-        default: ""
+      type: String,
+      default: '',
+      trim: true,
     },
     avatarUrl: {
-        type: String,
-        default: "https://i.sstatic.net/l60Hf.png"
+      type: String,
+      default: 'https://i.sstatic.net/l60Hf.png',
     },
     status: {
-        type: Boolean,
-        default: false
+      type: Boolean,
+      default: false,
     },
     role: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'role'
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'role',
     },
     loginCount: {
-        type: Number,
-        default: 0,
-        min: 0
+      type: Number,
+      default: 0,
+      min: 0,
     },
     isDeleted: {
-        type: Boolean,
-        default: false
-    }
-}, {
-    timestamps: true
-});
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
 
 module.exports = mongoose.model('user', userSchema);
+

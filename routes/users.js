@@ -1,120 +1,150 @@
-const express = require('express');
-const router = express.Router();
-const User = require('../schemas/users');
+var express = require('express');
+var router = express.Router();
+let modelUser = require('../schemas/users');
 
-// GET all users (not deleted)
-router.get('/', async (req, res) => {
+// GET all users (không lấy user đã xoá mềm)
+// GET /api/v1/users
+router.get('/', async function (req, res, next) {
   try {
-    const users = await User.find({ isDeleted: false }).populate('role');
-    res.status(200).json({ success: true, data: users });
+    let users = await modelUser.find({ isDeleted: false });
+    res.send(users);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).send({ message: 'Server error', error: error.message });
   }
 });
 
-// GET user by ID
-router.get('/:id', async (req, res) => {
+// GET user theo id
+// GET /api/v1/users/:id
+router.get('/:id', async function (req, res, next) {
   try {
-    const user = await User.findOne({ _id: req.params.id, isDeleted: false }).populate('role');
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+    let id = req.params.id;
+    let user = await modelUser.findById(id);
+    if (user && !user.isDeleted) {
+      res.send(user);
+    } else {
+      res.status(404).send({ message: 'User not found' });
     }
-    res.status(200).json({ success: true, data: user });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(404).send({ message: 'User not found' });
   }
 });
 
-// POST to create a new user
-router.post('/', async (req, res) => {
+// CREATE user
+// POST /api/v1/users
+router.post('/', async function (req, res, next) {
   try {
-    const newUser = new User(req.body);
-    const savedUser = await newUser.save();
-    res.status(201).json({ success: true, data: savedUser });
+    let newUser = new modelUser({
+      username: req.body.username,
+      password: req.body.password,
+      email: req.body.email,
+      fullName: req.body.fullName,
+      avatarUrl: req.body.avatarUrl,
+      status: req.body.status,
+      role: req.body.role,
+      loginCount: req.body.loginCount,
+    });
+    await newUser.save();
+    res.send(newUser);
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    res
+      .status(400)
+      .send({ message: 'Cannot create user', error: error.message });
   }
 });
 
-// PUT to update a user
-router.put('/:id', async (req, res) => {
+// UPDATE user
+// PUT /api/v1/users/:id
+router.put('/:id', async function (req, res, next) {
   try {
-    const updatedUser = await User.findOneAndUpdate(
-      { _id: req.params.id, isDeleted: false },
-      req.body,
-      { new: true, runValidators: true }
-    );
-    if (!updatedUser) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+    let id = req.params.id;
+    let updatedUser = await modelUser.findByIdAndUpdate(id, req.body, {
+      new: true,
+    });
+    if (updatedUser) {
+      res.send(updatedUser);
+    } else {
+      res.status(404).send({ message: 'User not found' });
     }
-    res.status(200).json({ success: true, data: updatedUser });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(404).send({ message: 'User not found' });
   }
 });
 
-// DELETE (soft delete) a user
-router.delete('/:id', async (req, res) => {
+// XOÁ MỀM user
+// DELETE /api/v1/users/:id
+router.delete('/:id', async function (req, res, next) {
   try {
-    const user = await User.findOneAndUpdate(
-      { _id: req.params.id, isDeleted: false },
+    let id = req.params.id;
+    let deletedUser = await modelUser.findByIdAndUpdate(
+      id,
       { isDeleted: true },
       { new: true }
     );
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+    if (deletedUser) {
+      res.send(deletedUser);
+    } else {
+      res.status(404).send({ message: 'User not found' });
     }
-    res.status(200).json({ success: true, message: 'User soft deleted successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(404).send({ message: 'User not found' });
   }
 });
 
-// POST to enable user
-router.post('/enable', async (req, res) => {
+// ENABLE user: truyền email và username, nếu đúng thì status = true
+// POST /api/v1/users/enable
+router.post('/enable', async function (req, res, next) {
   try {
-    const { email, username } = req.body;
+    let { email, username } = req.body;
     if (!email || !username) {
-      return res.status(400).json({ success: false, message: 'Email and username are required' });
+      return res
+        .status(400)
+        .send({ message: 'Email và username là bắt buộc' });
     }
 
-    const user = await User.findOneAndUpdate(
-      { email, username, isDeleted: false },
-      { status: true },
-      { new: true }
-    );
+    let user = await modelUser.findOne({
+      email: email.toLowerCase(),
+      username: username,
+      isDeleted: false,
+    });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: 'Invalid credentials or user not found' });
+      return res.status(404).send({ message: 'Thông tin không chính xác' });
     }
 
-    res.status(200).json({ success: true, message: 'User enabled successfully', data: user });
+    user.status = true;
+    await user.save();
+    res.send(user);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).send({ message: 'Server error', error: error.message });
   }
 });
 
-// POST to disable user
-router.post('/disable', async (req, res) => {
+// DISABLE user: truyền email và username, nếu đúng thì status = false
+// POST /api/v1/users/disable
+router.post('/disable', async function (req, res, next) {
   try {
-    const { email, username } = req.body;
+    let { email, username } = req.body;
     if (!email || !username) {
-      return res.status(400).json({ success: false, message: 'Email and username are required' });
+      return res
+        .status(400)
+        .send({ message: 'Email và username là bắt buộc' });
     }
 
-    const user = await User.findOneAndUpdate(
-      { email, username, isDeleted: false },
-      { status: false },
-      { new: true }
-    );
+    let user = await modelUser.findOne({
+      email: email.toLowerCase(),
+      username: username,
+      isDeleted: false,
+    });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: 'Invalid credentials or user not found' });
+      return res.status(404).send({ message: 'Thông tin không chính xác' });
     }
 
-    res.status(200).json({ success: true, message: 'User disabled successfully', data: user });
+    user.status = false;
+    await user.save();
+    res.send(user);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).send({ message: 'Server error', error: error.message });
   }
 });
 
